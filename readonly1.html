@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0">
+<title>마케팅 식당 지도</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="식당 지도">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#1a1a2e">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;width:100%;font-family:sans-serif;overflow:hidden;position:fixed;top:0;left:0}
+#app{display:flex;flex-direction:column;height:100%;width:100%;position:fixed;top:0;left:0;right:0;bottom:0}
+#hd{background:#1a1a2e;color:#fff;height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;flex-shrink:0}
+#hd h1{font-size:13px;font-weight:700}
+#hd h1 em{color:#f59e0b;font-style:normal}
+.hbs{display:none}
+.hb{padding:5px 8px;border-radius:6px;border:none;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap}
+.hbg{background:rgba(255,255,255,.14);color:#fff}
+.hbgold{background:#f59e0b;color:#1a1a2e}
+#fbar{background:#fff;border-bottom:1px solid #e5e3de;padding:4px 10px 5px;flex-shrink:0}
+.frow{display:flex;flex-direction:column;gap:3px}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fl{font-size:9px;font-weight:700;color:#888;letter-spacing:.4px;text-transform:uppercase}
+.chips{display:flex;gap:4px;flex-wrap:wrap}
+.chip{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid #d1d5db;background:#fff;color:#555;user-select:none;white-space:nowrap}
+.chips::-webkit-scrollbar{display:none}.chip.ar{background:#1a1a2e;color:#fff;border-color:#1a1a2e}
+.chip.am{background:#f59e0b;color:#1a1a2e;border-color:#f59e0b}
+.chip.am[data-v="한식"]{background:#e84f4f;color:#fff;border-color:#e84f4f}
+.chip.am[data-v="중식"]{background:#f97316;color:#fff;border-color:#f97316}
+.chip.am[data-v="일식"]{background:#eab308;color:#1a1a2e;border-color:#eab308}
+.chip.am[data-v="양식"]{background:#22c55e;color:#fff;border-color:#22c55e}
+.chip.am[data-v="고기"]{background:#3b82f6;color:#fff;border-color:#3b82f6}
+.chip.am[data-v="기타"]{background:#8b5cf6;color:#fff;border-color:#8b5cf6}
+#main{display:flex;flex:1;overflow:hidden;position:relative;min-height:0}
+#sb{width:240px;min-width:240px;background:#fff;border-right:1px solid #e5e3de;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;transition:width .25s,min-width .25s}
+#sb.hide{width:0;min-width:0}
+#sbh{padding:8px 11px;border-bottom:1px solid #f0ede8;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;white-space:nowrap}
+#sbh b{font-size:12px;color:#1a1a2e}
+#sbh span{font-size:11px;color:#888}
+#rl{overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch}
+.ri{padding:9px 11px;border-bottom:1px solid #f3f4f6;cursor:pointer;border-left:3px solid transparent}
+.ri.on{background:#fffbeb;border-left-color:#f59e0b}
+.rn{font-size:12px;font-weight:700;color:#1a1a2e;margin-bottom:3px;line-height:1.3}
+.rt{display:flex;gap:3px;flex-wrap:wrap}
+.tg{display:inline-block;padding:1px 5px;border-radius:7px;font-size:10px;font-weight:600}
+.tgr{background:#f0f0f8;color:#444}
+.tgm{background:#fff3d0;color:#92640a}
+.tgm-h{background:#ffe0e0;color:#c0392b}
+.tgm-c{background:#ffe8d0;color:#c2410c}
+.tgm-j{background:#fef9c3;color:#854d0e}
+.tgm-y{background:#dcfce7;color:#15803d}
+.tgm-g{background:#dbeafe;color:#1d4ed8}
+.tgm-e{background:#ede9fe;color:#6d28d9}
+#nores{display:none;padding:20px 10px;text-align:center;color:#999;font-size:12px}
+#togwrap{position:relative;width:0;overflow:visible;z-index:600;flex-shrink:0}
+#tog{position:absolute;top:50%;left:0;transform:translateY(-50%);background:#1a1a2e;color:#fff;border:none;width:20px;height:48px;cursor:pointer;border-radius:0 8px 8px 0;font-size:11px;display:flex;align-items:center;justify-content:center;box-shadow:2px 0 8px rgba(0,0,0,.25)}
+#mw{flex:1;position:relative;overflow:hidden;min-width:0}
+#map{width:100%;height:100%}
+#badge{position:absolute;bottom:14px;right:12px;background:rgba(26,26,46,.82);color:#fff;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:600;z-index:40;pointer-events:none}
+.leaflet-popup-content-wrapper{border-radius:12px!important;box-shadow:0 6px 32px rgba(0,0,0,.22)!important;padding:0!important;overflow:hidden;max-width:min(400px, calc(100vw - 80px))!important;width:min(400px, calc(100vw - 80px))!important}
+.leaflet-popup-content{margin:0!important;width:100%!important;max-height:42vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.leaflet-popup-tip-container{margin-top:-1px}
+.leaflet-popup-close-button{color:#fff!important;font-size:18px!important;padding:3px 6px!important;top:6px!important;right:6px!important;background:rgba(255,255,255,.2)!important;border-radius:50%!important;width:24px!important;height:24px!important;line-height:1!important}
+/* 팝업은 기본 pointer-events 유지 - JS로 터치 전달 처리 */
+.pph{background:#1a1a2e;padding:9px 14px 8px;position:relative}
+.pph h3{color:#fff;font-size:15px;font-weight:700;margin-bottom:4px;line-height:1.2;padding-right:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ppbgs{display:flex;gap:5px;flex-wrap:nowrap;margin-top:3px;overflow:hidden}
+.ppbg{font-size:11px;font-weight:700;padding:2px 9px;border-radius:7px}
+.ppbgr{background:rgba(255,255,255,.15);color:#ddd}
+.ppb{padding:8px 14px}
+.ppr{display:flex;gap:5px;margin-bottom:4px;font-size:12px;color:#444;align-items:center;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ppls{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:5px}
+.ppl{display:flex;align-items:center;gap:2px;padding:3px 7px;border-radius:6px;font-size:10px;font-weight:600}
+.pply{background:#ecfdf5;color:#059669}.ppln{background:#fef2f2;color:#dc2626}.pplu{background:#f3f4f6;color:#6b7280}
+.ppsl{font-size:9px;font-weight:700;color:#999;letter-spacing:.4px;text-transform:uppercase;margin-bottom:3px}
+.ppmo{background:#f9f8f5;border-radius:6px;padding:6px 9px;font-size:12px;color:#333;line-height:1.7;white-space:pre-wrap;word-break:break-word;margin-bottom:5px;border:1px solid #ece8df}
+.pprv{background:#f0f4ff;border-radius:6px;padding:6px 9px;font-size:12px;color:#333;line-height:1.7;white-space:pre-wrap;word-break:break-word;border:1px solid #dce4f7}
+.ppmo a,.pprv a{color:#2563eb;text-decoration:underline;word-break:break-all}
+.ppft{padding:6px 14px 10px;display:flex;gap:5px;flex-wrap:wrap;border-top:1px solid #f0ede8}.ppft .eb{display:none}
+.nb{display:inline-flex;align-items:center;gap:3px;background:#03c75a;color:#fff;text-decoration:none;padding:6px 10px;border-radius:7px;font-size:11px;font-weight:700}
+.eb{display:inline-flex;align-items:center;gap:3px;background:#f3f4f6;color:#444;border:none;cursor:pointer;padding:6px 10px;border-radius:7px;font-size:11px;font-weight:700}
+#moOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;align-items:flex-start;justify-content:center;padding-top:20px;overflow-y:auto}
+#moOverlay.open{display:flex}
+#md{background:#fff;border-radius:14px;width:460px;max-width:calc(100vw - 16px);margin-bottom:20px}
+.mh{padding:14px 15px 10px;border-bottom:1px solid #f0ede8;display:flex;justify-content:space-between;align-items:center}
+.mh h2{font-size:14px;font-weight:700;color:#1a1a2e}
+.mx{background:none;border:none;font-size:22px;cursor:pointer;color:#999;padding:2px 8px;line-height:1}
+.mbody{padding:13px 15px}
+.fg2{margin-bottom:11px}
+.lb{display:block;font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.fi,.fs,.ft{width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:14px;color:#1a1a2e;background:#fff}
+.fi:focus,.fs:focus,.ft:focus{outline:none;border-color:#2563eb}
+.ft{min-height:80px;resize:vertical;line-height:1.65}
+.gr2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.mf{padding:10px 15px 16px;display:flex;gap:6px;justify-content:flex-end;border-top:1px solid #f0ede8}
+.bsv{background:#2563eb;color:#fff;border:none;cursor:pointer;padding:10px 20px;border-radius:7px;font-size:13px;font-weight:700}
+.bcn{background:#f3f4f6;color:#555;border:none;cursor:pointer;padding:10px 14px;border-radius:7px;font-size:13px}
+.bdl{background:#fef2f2;color:#dc2626;border:none;cursor:pointer;padding:10px 12px;border-radius:7px;font-size:13px;margin-right:auto}
+#soOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center}
+#soOverlay.open{display:flex}
+#sd{background:#fff;border-radius:14px;width:380px;max-width:calc(100vw - 16px);padding:20px}
+#sd h2{font-size:15px;font-weight:700;margin-bottom:7px}
+#sd p{font-size:11px;color:#666;line-height:1.7;margin-bottom:13px}
+.fbi{width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;margin-bottom:9px}
+.sbr{display:flex;gap:6px}
+.fbok{flex:1;background:#2563eb;color:#fff;border:none;padding:9px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer}
+.fbsk{background:#f3f4f6;color:#555;border:none;padding:9px 12px;border-radius:7px;font-size:12px;cursor:pointer}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(60px);background:#1a1a2e;color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:600;z-index:99999;transition:transform .24s,opacity .24s;opacity:0;pointer-events:none;white-space:nowrap}
+#toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+@media(max-width:480px){#sb{width:210px;min-width:210px}#sb.hide{width:0;min-width:0}.gr2{grid-template-columns:1fr}.leaflet-popup-content-wrapper{max-width:min(400px, calc(100vw - 80px))!important;width:min(400px, calc(100vw - 80px))!important}}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="hd">
+  <h1>&#127869; <em>마케팅</em> 식당 지도</h1>
+  </div>
+<div id="fbar">
+  <div class="frow">
+    <div class="fg"><div class="fl">지역</div><div class="chips" id="rc"></div></div>
+    <div class="fg"><div class="fl">메뉴</div><div class="chips" id="mc"></div></div>
+  </div>
+</div>
+<div id="main">
+  <div id="sb">
+    <div id="sbh"><b>식당 목록</b><span id="cnt">0개</span></div>
+    <div id="rl"></div>
+    <div id="nores">조건에 맞는 식당이 없습니다</div>
+  </div>
+  <div id="togwrap"><button id="tog">&#9664;</button></div>
+  <div id="mw"><div id="map"></div><div id="badge">0개</div></div>
+</div>
+</div>
+<div id="moOverlay" style="display:none!important">
+<div id="md">
+  <div class="mh"><h2 id="mtit">수정</h2><button class="mx" id="moX">&#215;</button></div>
+  <div class="mbody">
+    <input type="hidden" id="eid">
+    <div class="fg2"><label class="lb">상호명 *</label><input class="fi" id="en" type="text"></div>
+    <div class="gr2">
+      <div class="fg2"><label class="lb">지역</label><select class="fs" id="er"><option>중구</option><option>용산구</option><option>종로구</option><option>서초구</option><option>강남구</option><option>서대문구</option><option>관악구</option><option>마포구</option><option>기타</option></select></div>
+      <div class="fg2"><label class="lb">메뉴</label><select class="fs" id="em"><option>한식</option><option>중식</option><option>일식</option><option>양식</option><option>고기</option><option>기타</option></select></div>
+    </div>
+    <div class="fg2"><label class="lb">세부메뉴</label><input class="fi" id="ed" type="text"></div>
+    <div class="fg2"><label class="lb">주소</label><input class="fi" id="ea" type="text"></div>
+    <div class="gr2">
+      <div class="fg2"><label class="lb">전화</label><input class="fi" id="et" type="text"></div>
+      <div class="fg2"><label class="lb">인근역</label><input class="fi" id="es" type="text"></div>
+    </div>
+    <div class="gr2">
+      <div class="fg2"><label class="lb">룸여부</label><select class="fs" id="eroom"><option value="O">O (있음)</option><option value="X">X (없음)</option></select></div>
+      <div class="fg2"><label class="lb">τ κολκιτζι</label><select class="fs" id="ecork"><option value="O">O (가능)</option><option value="X">X (불가)</option><option value="확인예정">확인예정</option></select></div>
+    </div>
+    <div class="fg2"><label class="lb">네이버링크</label><input class="fi" id="enav" type="url"></div>
+    <div class="fg2"><label class="lb">메모</label><textarea class="ft" id="emo"></textarea></div>
+    <div class="fg2"><label class="lb">τ κομμενταρια</label><textarea class="ft" id="erv"></textarea></div>
+  </div>
+  <div class="mf">
+    <button class="bdl" id="delbtn" style="display:none">&#128465;</button>
+    <button class="bcn" id="moCancel">취소</button>
+    <button class="bsv" id="moSave">저장</button>
+  </div>
+</div>
+</div>
+<div id="soOverlay" style="display:none!important">
+<div id="sd">
+  <h2>&#128279; 실시간 공유</h2>
+  <p>Firebase URL 입력 시 맱크 공유받은 누구나 실시간 수정 가능<br>
+  <a href="https://console.firebase.google.com" target="_blank" style="color:#2563eb">console.firebase.google.com</a></p>
+  <input class="fbi" id="fbi" placeholder="https://xxx-default-rtdb.firebaseio.com" type="url">
+  <div class="sbr"><button class="fbok" id="fbOk">연결</button><button class="fbsk" id="fbSkip">나중에</button></div>
+</div>
+</div>
+<div id="toast"></div>
+<script>
+(function(){
+var s1=document.createElement('script');s1.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';document.head.appendChild(s1);
+var s2=document.createElement('script');s2.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js';document.head.appendChild(s2);
+var MC={"\ud55c\uc2dd":"#e84f4f","\uc911\uc2dd":"#e8a838","\uc77c\uc2dd":"#3b82f6","\uc591\uc2dd":"#8b5cf6","\uace0\uae30":"#ef6c00","\uae30\ud0c0":"#6b7280"};
+var ME={"\ud55c\uc2dd":"\ud83c\udf5a","\uc911\uc2dd":"\ud83e\udd62","\uc77c\uc2dd":"\ud83c\udf63","\uc591\uc2dd":"\ud83c\udf7d","\uace0\uae30":"\ud83e\udd69","\uae30\ud0c0":"\ud83c\udf77"};
+var REGIONS=["\uc911\uad6c","\uc6a9\uc0b0\uad6c","\uc885\ub85c\uad6c","\uc11c\ucd08\uad6c","\uac15\ub0a8\uad6c","\uc11c\ub300\ubb38\uad6c","\uad00\uc545\uad6c","\ub9c8\ud3ec\uad6c"];
+var MENUS=["\ud55c\uc2dd","\uc911\uc2dd","\uc77c\uc2dd","\uc591\uc2dd","\uace0\uae30","\uae30\ud0c0"];
+var RC={"\uc911\uad6c":[37.564,126.9975],"\uc6a9\uc0b0\uad6c":[37.5326,126.9856],"\uc885\ub85c\uad6c":[37.5735,126.9788],"\uc11c\ucd08\uad6c":[37.4837,127.0324],"\uac15\ub0a8\uad6c":[37.4979,127.0276],"\uc11c\ub300\ubb38\uad6c":[37.5791,126.9368],"\uad00\uc545\uad6c":[37.4784,126.9516],"\ub9c8\ud3ec\uad6c":[37.5522,126.9092]};
+var DATA=[{"id": "r1", "name": "\ud574\ub2f4\ucc44 \uc2dc\uccad\uc810", "region": "\uc911\uad6c", "menu": "\ud55c\uc2dd", "detail": "\ub0a8\ub3c4\ud55c\uc815\uc2dd", "addr": "\uc911\uad6c \uce60\ud328\ub85c 37 HSBC\ube4c\ub529 \uc9c0\ud558 1\uce35", "tel": "02-318-4997", "station": "\uc11c\uc6b8\uc5ed/\uc2dc\uccad\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/5FmScl5a", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5\n\u2219 \ub2e8\uccb4\uc774\uc6a9\uac00\ub2a5", "review": "\u2219 \uac1c\ubcc4 \ub8f8\uc73c\ub85c \ub418\uc5b4 \uc788\uc5b4 \uace0\uac1d \ubaa8\uc784\uc5d0 \uc801\ud569\n\u2219 \ud574\ucd08\uc640 \uacc1\ub4e4\uc5ec \uba39\ub294 \uc138\uaf2c\uc2dc \uc2a4\ud0c0\uc77c\ub85c \ubb34\ub09c\ud55c \ud3b8", "lat": 37.5626, "lng": 126.9758}, {"id": "r2", "name": "\uc544\ub9ac\uc5f0", "region": "\uc911\uad6c", "menu": "\ud55c\uc2dd", "detail": "\ud55c\uc815\uc2dd", "addr": "\uc911\uad6c \uc138\uc885\ub300\ub85c 12\uae38 12 \ud574\ub0a82\ube4c\ub529 \uc9c0\ud558 1\uce35", "tel": "02-757-1994", "station": "\uc2dc\uccad\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/55rm7GPb", "memo": "\u2219 \ub124\uc774\ubc84 \uc608\uc57d \uac00\ub2a5\n\u2219 \uc810\uc2ec-\uc815\uc2dd/\uc800\ub141-\ucf54\uc2a4", "review": "\u2219 \ud574\ub2f4\ucc44\uc640 \uc720\uc0ac\ud55c \uc2a4\ud0c0\uc77c\uc758 \ud574\ucd08\ub97c \uacc1\ub4e4\uc778 \uc138\uaf2c\uc2dc \uc704\uc8fc\uc758 \uc2dd\ub2f9. \uc810\uc2ec\uc5d0\ub294 \ubcf4\ub9ac\uad74\ube44 \uc815\uc2dd\ub3c4 \ub9ce\uc774 \uba39\ub294 \ud3b8\n\u2219 \ud574\ucd08\ub85d\uacfc \uc720\uc0ac\ud55c \ubd84\uc704\uae30\uc758 \uc2dd\ub2f9\uc73c\ub85c \uc0dd\uac01\ud558\uba74 \ub428", "lat": 37.5657, "lng": 126.9769}, {"id": "r3", "name": "\ub3d9\ud654\uace0\uc625 \uc11c\uc6b8\uc5ed\uc810", "region": "\uc911\uad6c", "menu": "\ud55c\uc2dd", "detail": "\ucf54\uc2a4\uc694\ub9ac/\ub0c9\uba74", "addr": "\uc911\uad6c \ud55c\uac15\ub300\ub85c 416 \uc9c0\ud558 1\uce35 24-1\ud638", "tel": "0507-1415-8344 010-9789-8324", "station": "\uc11c\uc6b8\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/5qDjBQKy", "memo": "\u2219 \uc9c0\ud3c9\uc81c\ud734\uc2dd\ub2f9(\uc0c1\uc2dc 15% \ud560\uc778)\n\u2219 \ub124\uc774\ubc84 \uc608\uc57d \uac00\ub2a5/ \ub304\uccb4\uc774\uc6a9\uac00\ub2a5", "review": "\u2219 \ud68c\uc0ac \uadfc\ucc98\uc5d0\uc11c \uace0\uac1d\uacfc \uc870\uc6a9\ud788 \uc2dd\uc0ac\ud560 \uc218 \uc788\ub294 \uc2dd\ub2f9\n\u2219 \uc608\uc57d\uacbd\uc7c1\ub960\uc774 \uc0c1\ub300\uc801\uc73c\ub85c \ub0ae\uc74c\n\u2219 \uac00\uaca9 \ub300\ube44 \uc74c\uc2dd\uc758 \ud004\ub7ec\ud2f0\uac00 \ub192\ub2e4\uace0 \ubcf4\uae30\ub294 \uc5b4\ub824\uc6c0", "lat": 37.5548, "lng": 126.9707}, {"id": "r4", "name": "\ud568\ub8e8 \uc11c\uc6b8\uc5ed\uc810", "region": "\uc911\uad6c", "menu": "\uc77c\uc2dd", "detail": "\uc7a5\uc5b4\ub36e\ubc25/\ud55c\uc6b0\ub36e\ubc25", "addr": "\uc911\uad6c \ud55c\uac15\ub300\ub85c 405 \uc11c\uc6b8\uc5ed 4\uce35", "tel": "0507-1484-1027", "station": "\uc11c\uc6b8\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/GbDFQLrU", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5\n\u2219 \ucd5c\ub300 12\uc778\uc11d \ub8f8 \uac00\ub2a5", "review": "\u2219 \ub098\uace0\uc57c\uc2dd \uc7a5\uc5b4\ub36e\ubc25\uc778 \ud788\uce20\ub9c8\ubd80\uc2dc \uc804\ubb38\uc810\uc784\n\u2219 \uacf5\ub355\uc5ed\uc5d0 \uc788\ub294 \ubcf8\uc810\uc774 \uc870\uae08 \ub354 \ub9db\uc774 \uc88b\uc740 \uac83 \uac19\uc74c\n\u2219 \uc7a5\uc5b4\ub36e\ubc25\uc744 \uc88b\uc544\ud558\ub294 \uace0\uac1d\uc774\ub77c\uba74 \ucd94\ucc9c\ud560 \uc218 \uc788\ub294 \uc9d1\uc784.\n\u2219 \ud68c\uc0ac \uadfc\ucc98\uc5d0\uc11c \uc7a5\uc5b4\uad6c\uc774\ub85c \uac00\ubcfc\ub9cc\ud55c \uc9d1\uc740 \uc22f\ubd88\uc18c\uae08\uad6c\uc774 \ub2e8\uc77c \uba54\ub274\uc778 \u2018\uc77c\ubbf8\uc7a5\uc5b4\u2019\uc640 \ud50c\ub77c\uc790\ud638\ud154 \ubd80\uadfc\uc5d0 \uc788\ub294 \ub3d9\ud638\uc7a5\uc5b4 \ub450 \uacf3\uc744 \ucd94\ucc9c\ud560 \uc218 \uc788\uc74c", "lat": 37.5562, "lng": 126.9712}, {"id": "r5", "name": "\ud0c0\ub2c8 \uc11c\uc6b8\uc5ed\uc810", "region": "\uc6a9\uc0b0\uad6c", "menu": "\uc77c\uc2dd", "detail": "\uc0ac\uc2dc\ubbf8/\uc2a4\ud14c\uc774\ud06c", "addr": "\uc6a9\uc0b0\uad6c \uccad\ud30c\ub85c 378 \uc11c\uc6b8\uc5ed\uc0ac 4\uce35", "tel": "0507-1384-0316", "station": "\uc11c\uc6b8\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/5CW7vXMU", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5\n\u2219 8\uc778\uc11d \ub8f8 1\uac1c \uc788\uc74c", "review": "\u2219 \uc870\uc6a9\ud558\uace0 \uae54\ub054\ud55c \uc74c\uc2dd\uc774 \uc7a5\uc810\n\u2219 \uac00\uc11c \uba39\uc744 \ub54c\ub9c8\ub2e4 \uba54\ub274\ud310\uc5d0 \uc801\ud78c \uac00\uaca9\ubcf4\ub2e4 30~40% \uc815\ub3c4 \uc800\ub834\ud558\ub2e4\uba74 \uc790\uc8fc \uc624\uace0 \uc2f6\uc740 \uc2dd\ub2f9\uc784\n\u2219 \uc608\uc57d\ub09c\uc774\ub3c4\uac00 \ub192\uc9c0 \uc54a\uc740 \ud3b8\uc774\uc5c8\ub294\ub370 \ucd5c\uadfc\uc5d0\ub294 \uc190\ub2d8\uc774 \ub298\uc5b4\ub098\uace0 \uc788\uc74c", "lat": 37.5574, "lng": 126.9704}, {"id": "r6", "name": "\ud574\ucd08\uc12c \uc11c\uc6b8\uc2a4\ud018\uc5b4\uc810", "region": "\uc911\uad6c", "menu": "\uc77c\uc2dd", "detail": "\ud574\ubb3c, \uc0dd\uc120\uc694\ub9ac", "addr": "\uc11c\uc6b8 \uc911\uad6c \ud55c\uac15\ub300\ub85c 416 \uc11c\uc6b8\uc2a4\ud018\uc5b4 1\uce35 8\ud638", "tel": "02-6456-8991", "station": "\uc11c\uc6b8\uc5ed", "room": "O", "cork": "\ud655\uc778\uc608\uc815", "naver": "https://naver.me/GfCsRJ5v", "memo": "", "review": "\u2219 \ud574\ub2f4\ucc44\uc640 \uc720\uc0ac\ud55c \uc2dd\ub2f9\uc784", "lat": 37.5551, "lng": 126.9715}, {"id": "r7", "name": "\ucf58\ud53c\uc5d0\ub974", "region": "\uc911\uad6c", "menu": "\uc591\uc2dd", "detail": "\ud4e8\uc804\uc591\uc2dd \ucf54\uc2a4", "addr": "\uc911\uad6c \uc138\uc885\ub300\ub85c 14 \uadf8\ub79c\ub4dc\uc13c\ud2b8\ub7f4 \uc9c0\ud558 2\uce35", "tel": "0507-1373-0827", "station": "\uc11c\uc6b8\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/FN7XPaLJ", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5", "review": "\u2219 \uc810\uc2ec / \uc800\ub141 \ubaa8\ub450 \uac00\uaca9 \ub300\ube44 \ud004\ub7ec\ud2f0\uac00 \ud6cc\ub96d\ud568\n\u2219 \uc608\uc57d\uc774 \uc27d\uc9c0 \uc54a\uc73c\ubbc0\ub85c \ucd5c\uc18c 2\uc8fc \uc804\uc5d0\ub294 \uc608\uc57d\ud558\ub294 \uac83\uc774 \uc88b\uc74c\n\u2219 \ub8f8 \uc608\uc57d\uc740 4\uc778 \uc774\uc0c1\uc774 \uc6d0\uce59\uc774\uace0 \ud640\uc740 \ubd84\uc704\uae30\uac00 \ucc28\ubd84\ud55c \ud3b8\uc740 \uc544\ub2d8", "lat": 37.5662, "lng": 126.9771}, {"id": "r8", "name": "\ud55c\uc640\ub2f4\uc2a4\ud14c\uc774\uc158 \uc11c\uc6b8\uc5ed\uc810", "region": "\uc911\uad6c", "menu": "\uace0\uae30", "detail": "\uc18c\uace0\uae30", "addr": "\uc911\uad6c \ud55c\uac15\ub300\ub85c \uc11c\uc6b8\uc5ed\uc0ac 4\uce35", "tel": "02-365-7905", "station": "\uc11c\uc6b8\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/5k7iWxic", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5\n\u2219 \ucd5c\ub300 20\uc778\uc11d", "review": "\u2219 \ubb34\ub09c\ud55c \uc18c\uace0\uae30\uad6c\uc774 \uc74c\uc2dd\uc810\n\u2219 \uc640\uc778 \ucf5c\ud0a4\uc9c0 \ubb34\ub8cc\uc778 \uc810\uc774 \ucd5c\ub300 \uc7a5\uc810\uc784", "lat": 37.5565, "lng": 126.972}, {"id": "r9", "name": "\uc11c\uc6b8\ub85c\uc778 \uc11c\uc6b8\uc5ed\uc810", "region": "\uc911\uad6c", "menu": "\uace0\uae30", "detail": "\uc18c\uace0\uae30/\uc0e4\ube0c\uc0e4\ube0c", "addr": "\uc911\uad6c \ud55c\uac15\ub300\ub85c 416 \uc11c\uc6b8\uc2a4\ud018\uc5b4 \uc9c0\ud558 1\uce35", "tel": "0507-1374-0329", "station": "\uc11c\uc6b8\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/FN7XNRm0", "memo": "\u2219 \uc9c0\ud3c9\uc81c\ud734\uc2dd\ub2f9(\uc0c1\uc2dc 15% \ud560\uc778)\n\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5", "review": "\u2219 \ud68c\uc0ac \uadfc\ucc98\uc5d0\uc11c \uace0\uac1d\uacfc \uc870\uc6a9\ud788 \uc2dd\uc0ac\ud560 \uc218 \uc788\ub294 \uc2dd\ub2f9\uc73c\ub85c \uc608\uc57d\uacbd\uc7c1\ub960\uc774 \uc0c1\ub300\uc801\uc73c\ub85c \ub0ae\uc74c\n\u2219 \uac00\uc131\ube44\uac00 \uc88b\uc9c0\ub294 \uc54a\uc74c\n\u2219 \ucd09\ubc15\ud558\uac8c \uc608\uc57d\ud560 \ub54c \ud55c\uc815\uc2dd \uc2a4\ud0c0\uc77c\uc774\uba74 \ub3d9\ud654\uace0\uc625/\uadf8\ub798\ub3c4 \uace0\uae30\ub97c \uc870\uae08 \uad6c\uc6cc \uba39\uc5b4\ubcf4\uace0 \uc2f6\ub2e4\uba74 \uc11c\uc6b8\ub85c\uc778\uc744 \uc120\ud0dd\ud560 \uc218 \uc788\uc74c", "lat": 37.5554, "lng": 126.9718}, {"id": "r10", "name": "\ub0a8\uc0b0\uc758 \uc0ac\uacc4\uc808", "region": "\uc911\uad6c", "menu": "\uace0\uae30", "detail": "\ud751\ub3fc\uc9c0", "addr": "\uc911\uad6c \ud1f4\uacc4\ub85c 8\uae38 54", "tel": "0507-1333-5910", "station": "\ud68c\ud604\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/xFLuPQAD", "memo": "\u2219 4/8/12/32\uc778\uc11d/\ud14c\ub77c\uc2a4\n\u2219 \ub124\uc774\ubc84 \uc608\uc57d \uac00\ub2a5", "review": "\u2219 \ub9ce\uc740 \uc778\uc6d0\uc774 \ud68c\uc2dd\ud558\uae30\uc5d0 \uc801\ub2f9\ud55c \uc2dd\ub2f9\uc784", "lat": 37.5578, "lng": 126.9819}, {"id": "r11", "name": "\ud5a5\uc5f0", "region": "\uc885\ub85c\uad6c", "menu": "\ud55c\uc2dd", "detail": "\ub0a8\ub3c4 \ud55c\uc815\uc2dd", "addr": "\uc11c\uc6b8 \uc885\ub85c\uad6c \uc0ac\uc9c1\ub85c10\uae38 9-6 1\uce35", "tel": "02-739-8779", "station": "\uacbd\ubcf5\uad81\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/Fifsdvql", "memo": "", "review": "\u2219 \ub8f8\uc73c\ub85c \uad6c\uc131\ub418\uc5b4 \uc788\uc5b4 \ubd84\uc704\uae30\uac00 \uc88b\uace0 \uc9c4\uc911\ud55c \ubaa8\uc784\uc5d0 \uc801\ud569\n\u2219 \ub0a8\ub3c4\uc74c\uc2dd \uc2a4\ud0c0\uc77c\ub85c \uc911\uc7a5\ub144\uce35\uc774 \uc120\ud638\ud558\ub294 \uc2dd\ub2f9\n\u2219 \ubcc4\ub3c4 \uc8fc\ucc28\uc7a5 \uc5c6\uace0 \uac74\ubb3c\uc774 \uc624\ub798\ub418\uc5b4 \uae54\ub054\ud558\uc9c0 \uc54a\uc740 \uc810\uc774 \ub2e8\uc810\n\u2219 \uad6c\ub450\ub97c \ubc97\uace0 \ub4e4\uc5b4\uac00\ub294 \uad6c\uc870\n\u2219 \uac00\uaca9\uc740 1\uc778\ub2f9 10~15\ub9cc \uc6d0\n\u2219 \uc815\ud1b5 \ud55c\uc815\uc2dd\uc744 \uba39\uc744 \uc218 \uc788\ub294 \uc5bc\ub9c8 \ub0a8\uc9c0 \uc54a\uc740 \uc9d1", "lat": 37.576, "lng": 126.9699}, {"id": "r12", "name": "\uc628\uc0c8\ubbf8\ud55c\uc815\uc2dd", "region": "\uc11c\ucd08\uad6c", "menu": "\ud55c\uc2dd", "detail": "\ud55c\uc815\uc2dd \ucf54\uc2a4", "addr": "\uc11c\uc6b8 \uc11c\ucd08\uad6c \uc11c\ucd08\ub300\ub85c 240 \ub3d9\uc77c\ud558\uc774\ube4c 2\uce35", "tel": "02-522-1197", "station": "\uc11c\ucd08\uc5ed/\uad50\ub300\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/xtgpGjBZ", "memo": "", "review": "\u2219 \uc800\ub141\ubcf4\ub2e4\ub294 \uc810\uc2ec\uc2dd\uc0ac\ub85c \uc801\ud569\n\u2219 \uc800\ub141\uc2dd\uc0ac\uc758 \uacbd\uc6b0 \uc9c4\uc911\ud55c \ubaa8\uc784\uc5d0\ub294 \ub9de\uc9c0 \uc54a\uc74c\n\u2219 \uac00\uaca9 \ud569\ub9ac\uc801\uc784\n\u2219 \uc5ec\ub7ec\uba85\uc774 \uac00\uc11c \ub2e4\uc591\ud55c \uba54\ub274\ub97c \uc8fc\ubb38\ud574 \uba39\ub294 \ubc29\uc2dd(\uac04\uc7a5\uac8c\uc7a5\uc815\uc2dd/\ubd88\uace0\uae30\uc815\uc2dd/\ubcf4\ub9ac\uad74\ube44\uc815\uc2dd \ub4f1)\n\u2219 \uc8fc\ucc28\uc7a5 \uc788\uc74c\n\u2219 \uc11c\ucd08\uc5ed\uc5d0\uc11c \uac00\uae4c\uc6b4 \uc704\uce58\ub85c \uc811\uadfc\uc131 \uc88b\uc74c", "lat": 37.4893, "lng": 127.0082}, {"id": "r13", "name": "\uc608\ub2f4\ud55c\uc815\uc2dd", "region": "\uac15\ub0a8\uad6c", "menu": "\ud55c\uc2dd", "detail": "\ud55c\uc815\uc2dd", "addr": "\uc11c\uc6b8 \uac15\ub0a8\uad6c \ud14c\ud5e4\ub780\ub85c13\uae38 21", "tel": "02-365-6884", "station": "\uac15\ub0a8\uc5ed/\uc5ed\uc0bc\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/5YFcgHqJ", "memo": "", "review": "\u2219 \uac15\ub0a8\uc5ed\uacfc \uc5ed\uc0bc\uc5ed \uc0ac\uc774 \uc704\uce58\ud55c \uc815\ud1b5 \ud55c\uc815\uc2dd\uc9d1\n\u2219 2\uce35 \uc8fc\ud0dd\uc744 \uc2dd\ub2f9\uc73c\ub85c \uc0ac\uc6a9\ud558\uace0 \uc788\ub294 \uacf3\uc73c\ub85c \uc815\ud1b5\ud55c\uc815\uc2dd\uc784\n\u2219 \uc74c\uc2dd\uc774 \ub9e4\uc6b0 \ud6cc\ub96d\ud568\n\u2219 \ubaa8\ub450 \uac1c\ubcc4\ub8f8\uc784", "lat": 37.5008, "lng": 127.0285}, {"id": "r14", "name": "\ub2a5\ub77c\ub3c4 \uc11c\ucd08\uc810", "region": "\uc11c\ucd08\uad6c", "menu": "\ud55c\uc2dd", "detail": "\uc5b4\ubcf5\uc7c1\ubc18, \ud55c\uc6b0", "addr": "\uc11c\uc6b8 \uc11c\ucd08\uad6c \uc11c\ucd08\ub300\ub85c 269 \ubd80\ub9bc\ube4c\ub529 1\uce35", "tel": "0507-1484-3989", "station": "\uc11c\ucd08\uc5ed/\uad50\ub300\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/FQVByPiy", "memo": "\u2219 \ub124\uc774\ubc84 \uc608\uc57d \uac00\ub2a5", "review": "\u2219 \ud3c9\uc591\ub0c9\uba74 \uc804\ubb38\uc810\n\u2219 \uc9c0\uc810\ub9c8\ub2e4 \ucc28\uc774\uac00 \uc788\ub294 \ud3b8\uc784\n\u2219 \uc5b4\ubcf5\uc7c1\ubc18, \uc218\uc721, \ub9cc\ub450 \ubaa8\ub450 \ud3c9\uade0 \uc774\uc0c1\uc784", "lat": 37.491, "lng": 127.0088}, {"id": "r15", "name": "\ub2a5\ub77c\ubc25\uc0c1", "region": "\uc885\ub85c\uad6c", "menu": "\ud55c\uc2dd", "detail": "\uc774\ubd81\uc74c\uc2dd", "addr": "\uc11c\uc6b8 \uc885\ub85c\uad6c \uc0ac\uc9c1\ub85c2\uae38 14 \ub2a5\ub77c\ubc25\uc0c1", "tel": "02-747-9907", "station": "\ub3c5\ub9bd\ubb38\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/GXApOqQb", "memo": "\u2219 \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5", "review": "\u2219 \ud3c9\uc591\ub0c9\uba74 \uc804\ubb38\uc810\n\u2219 \uc21c\ub300, \ud3b8\uc721\uc774 \ub9db\uc788\uace0 \ud3c9\uc591\uc871\ubc1c\ubcf6\uc74c\uc740 \ub2e4\ub978 \ud3c9\uc591\ub0c9\uba74 \uc804\ubb38\uc810\uc5d0\uc11c\ub294 \ub9db\ubcf4\uae30 \ud798\ub4e0 \uba54\ub274\uc784 \n\u2219 \ud3c9\uc591\ub0c9\uba74 \uc88b\uc544\ud558\ub294 \uace0\uac1d\uc774\ub77c\uba74 \uc744\uc9c0\uba74\uc625, \ud544\ub3d9\uba74\uc625, \uc744\ubc00\ub300, \ud3c9\uc591\uba74\uc625\uacfc \ud568\uaed8 \uace0\ub824\ud560 \uc218 \uc788\ub294 \uc2dd\ub2f9 \uc911\uc758 \ud558\ub098\uc784", "lat": 37.5758, "lng": 126.9696}, {"id": "r16", "name": "\ub300\ub098\ubb34\uace8 \ud55c\uc815\uc2dd", "region": "\uc11c\ucd08\uad6c", "menu": "\ud55c\uc2dd", "detail": "\ud55c\uc815\uc2dd \ucf54\uc2a4", "addr": "\uc11c\uc6b8 \uc11c\ucd08\uad6c \ubc95\uc6d0\ub85c3\uae38 15 \uc601\ud3ec\ube4c\ub529 \uc9c0\ud5581\uce35", "tel": "02-533-8410", "station": "\uc11c\ucd08\uc5ed/\uad50\ub300\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/GTn3D8BB", "memo": "", "review": "\u2219 \ubc95\uc6d0 \uadfc\ucc98\uc5d0\uc11c \ubb34\ub09c\ud55c \ud55c\uc815\uc2dd \uc9d1\uc744 \ucc3e\ub294\ub2e4\uba74 \uc628\uc0c8\ubbf8 \ud55c\uc815\uc2dd\uacfc \ud568\uaed8 \uace0\ub824\ud560 \uc218 \uc788\ub294 \uc2dd\ub2f9\uc784\n\u2219 \ubd84\uc704\uae30\uac00 \uace0\uae09\uc2a4\ub7fd\uc9c0\ub294 \uc54a\uc74c", "lat": 37.4903, "lng": 127.005}, {"id": "r17", "name": "\ud55c\uc815\uc2dd \ub3d9\uc2ec", "region": "\uc911\uad6c", "menu": "\ud55c\uc2dd", "detail": "\ud55c\uc815\uc2dd", "addr": "\uc11c\uc6b8 \uc911\uad6c \ud544\ub3d91\uac00 9-1", "tel": "02-2267-4862", "station": "\ucda9\ubb34\ub85c\uc5ed/\uba85\ub3d9\uc5ed", "room": "O", "cork": "\ud655\uc778\uc608\uc815", "naver": "https://naver.me/52R5NWlN", "memo": "", "review": "\u2219 \ucda9\ubb34\ub85c \uc704\uce58\ud55c \ud55c\uc815\uc2dd\uc73c\ub85c \ub9e4\uc77c\uacbd\uc81c\uc5d0\uc11c \uc120\ud638\ud558\ub294 \uc9d1\uc784\n\u2219 \uac00\uc815\uc9d1 \ud55c\uc815\uc2dd \uc2a4\ud0c0\uc77c\ub85c \ucda9\ubb34\ub85c\uc5d0 \uba87 \ub0a8\uc9c0 \uc54a\uc740 \uc9d1\uc784\n\u2219 \uc911\uc7a5\ub144\uce35\uc774 \uc120\ud638\ud558\ub294 \ud55c\uc815\uc2dd\uc784\n\u2219 \uac00\uc131\ube44\ub3c4 \uc88b\uc74c", "lat": 37.5595, "lng": 126.9951}, {"id": "r18", "name": "\ub0a8\ub3c4\uc9c4\ubbf8", "region": "\uc11c\ucd08\uad6c", "menu": "\ud55c\uc2dd", "detail": "\ub0a8\ub3c4\uc74c\uc2dd", "addr": "\uc11c\uc6b8 \uc11c\ucd08\uad6c \uc11c\ucd08\ub300\ub85c46\uae38 25", "tel": "02-525-7775", "station": "\uc11c\ucd08\uc5ed/\uad50\ub300\uc5ed", "room": "O", "cork": "X", "naver": "https://naver.me/FV7YuWBO", "memo": "", "review": "\u2219 \ubd81\ucc3d\ub3d9\uc5d0 \uc704\uce58\ud55c \ud55c\uc2dd\uc9d1\uc73c\ub85c \ub0a8\ub3c4\uc74c\uc2dd \uc804\ubb38\uc810\uc784\n\u2219 \ub0a8\ub3c4\uc74c\uc2dd \ud2b9\uc720\uc758 \ud5a5\uc774 \uc788\uc5b4\uc11c \ube44\uc704\uac00 \uc57d\ud55c \ubd84\ub4e4\uc740 \uc120\ud638\ud558\uc9c0 \uc54a\uc744 \uc218 \uc788\uc74c\n\u2219 \uaca8\uc6b8\uc5d0 \uaf2c\ub9c9\uc774 \ub9db\uc788\uc74c.", "lat": 37.492, "lng": 127.0145}, {"id": "r19", "name": "\uc11d\ud30c\ub791", "region": "\uc885\ub85c\uad6c", "menu": "\ud55c\uc2dd", "detail": "\ud55c\uc815\uc2dd \ucf54\uc2a4", "addr": "\uc11c\uc6b8 \uc885\ub85c\uad6c \uc790\ud558\ubb38\ub85c 309", "tel": "02-395-2500", "station": "/\ub179\ubc88\uc5ed/\ud64d\uc81c\uc5ed/\uacbd\ubcf5\uad81\uc5ed//\uc9c0\ud558\ucca0 \uc5ed\uacfc \uba40\uc5b4 \uc790\uac00\uc6a9 \uc774\uc6a9\ucd94\ucc9c", "room": "O", "cork": "O", "naver": "https://naver.me/F6lT1DPl", "memo": "\u2219 \ubbf8\uc250\ub9b0\uac00\uc774\ub4dc \uc11c\uc6b8 2017", "review": "\u2219 \uace0\uae09 \ud55c\uc815\uc2dd\uc73c\ub85c \uace0\uac1d \uc811\ub300\uc5d0 \uc801\ud569\ud55c \uc7a5\uc18c\uc784\n\u2219 \uc778\ud14c\ub9ac\uc5b4, \ubd84\uc704\uae30\ub85c\ub294 \ucd5c\uc0c1\uc704 \uc810\uc218\ub97c \uc904 \uc218 \uc788\uc74c", "lat": 37.592, "lng": 126.9613}, {"id": "r20", "name": "\ucc28\ubc18\uc790\ub9ac", "region": "\uc11c\ucd08\uad6c", "menu": "\ud55c\uc2dd", "detail": "\ud55c\uc2dd, \uc2a4\uc2dc", "addr": "\uc11c\uc6b8 \uc11c\ucd08\uad6c \uc11c\ucd08\uc911\uc559\ub85c26\uae38 6 1\uce35", "tel": "0507-1476-1254", "station": "\uad50\ub300\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/5D8tgvYY", "memo": "\u2219 5\uc778/12\uc778 \ub8f8", "review": "\ud655\uc778\uc608\uc815", "lat": 37.4965, "lng": 127.0105}, {"id": "r21", "name": "\uc6e8\uc2a4\ud2f4\uc870\uc120 \uc11c\uc6b8 \ud64d\uc5f0", "region": "\uc911\uad6c", "menu": "\uc911\uc2dd", "detail": "\uc911\uad6d \ucf54\uc2a4", "addr": "\uc911\uad6c \uc18c\uacf5\ub85c 106 \uc6e8\uc2a4\ud2f4\uc870\uc120\ud638\ud154 1\uce35", "tel": "02-317-0494", "station": "\uc2dc\uccad\uc5ed/\uc744\uc9c0\ub85c\uc785\uad6c\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/5k7fup79", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5\n\u2219 \ubbf8\uc250\ub9b0\uac00\uc774\ub4dc \uc11c\uc6b8 2024, 2025", "review": "\u2219 \ud68c\uc0ac \uadfc\ucc98 \uc911\uc2dd\ub2f9 \uc911 \ubd84\uc704\uae30\ub294 \uac00\uc7a5 \uace0\uae09\uc2a4\ub7ec\uc6c0\n\u2219 \ub8f8 \uc608\uc57d \uc2dc \ucf54\uc2a4 \uc8fc\ubb38 \ud544\uc218\n\u2219 \ud3b8\uc548\ud55c \uace0\uac1d\uacfc \uc2dd\uc0ac\ud558\ub294 \uacbd\uc6b0\uc5d0\ub294 \ud640\uc5d0\uc11c \uc2dd\uc0ac\ud558\ub294 \uac83\ub3c4 \uc88b\uc74c\n\u2219 \ubd84\uc704\uae30\ub294 \ud64d\uc5f0\uacfc \ud50c\ub77c\uc790\ud638\ud154 \ub3c4\uc6d0\uc774 \ube44\uc2b7\ud558\uace0 \ub86f\ub370\ud638\ud154 \ub3c4\ub9bc\uc740 \ub450 \uc2dd\ub2f9\ubcf4\ub2e4 \ubd84\uc704\uae30\uac00 \uc0c1\ub300\uc801\uc73c\ub85c \ud3b8\uc548\ud55c \uc2a4\ud0c0\uc77c", "lat": 37.5647, "lng": 126.9812}, {"id": "r22", "name": "\uace0\ub7c9\uc8fc\uad00 \uc2e0\uc138\uacc4\uac15\ub0a8\uc810", "region": "\uc11c\ucd08\uad6c", "menu": "\uc911\uc2dd", "detail": "\uc911\uad6d\uc74c\uc2dd", "addr": "\uc11c\uc6b8 \uc11c\ucd08\uad6c \uc2e0\ubc18\ud3ec\ub85c 176 \uc2e0\uc138\uacc4\ubc31\ud654\uc810 \uac15\ub0a8\uc810 \ud558\uc6b0\uc2a4\uc624\ube0c 1\uce35, \uace0\ub7c9\uc8fc\uad00", "tel": "0507-1383-6087", "station": "\uace0\uc18d\ud130\ubbf8\ub110\uc5ed/\ubc18\ud3ec\uc5ed", "room": "O", "cork": "X", "naver": "https://naver.me/5VmQucqo", "memo": "\u2219 \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5\n\u2219 \uc800\ub141 \uc774\uc6a9 \uc2dc \uc778\ub2f9 1\uc8fc\ub958 \ud544\uc218 \uc8fc\ubb38(\ucf5c\ud0a4\uc9c0 \ubd88\uac00)\n\u2219 \ub8f8 \ucc28\uc9c0: 1-5\uc778 \ubb34\ub8cc/5-6\uc778 10\ub9cc\uc6d0(\ucd5c\uc18c \uc8fc\ubb38\uae08\uc561 50\ub9cc\uc6d0)", "review": "\u2219 \ucd5c\uadfc \uc778\uae30\uac00 \ub192\uc740 \uc2e0\uc138\uacc4\ubc31\ud654\uc810 \ub0b4 \u2018\ud558\uc6b0\uc2a4\uc624\ube0c\uc2e0\uc138\uacc4\u2019 \ub0b4\uc5d0 \uc704\uce58\ud55c \uacf3\uc73c\ub85c \uc885\ub85c\ubcf8\uc810\uacfc \uc2e0\uc138\uacc4\uac15\ub0a8\uc810 \ub450 \uacf3\uc5d0\uc11c \uc6b4\uc601 \uc911\uc784\n\u2219 \ub2e4\uc591\ud55c \uace0\ub7c9\uc8fc\ub97c \ub9db\ubcfc \uc218 \uc788\ub2e4\ub294 \uc810\uc774 \uc7a5\uc810\uc784\n\u2219 \uace0\ub7c9\uc8fc \uc0d8\ud50c\ub7ec\ub97c \uc8fc\ubb38\ud558\ub294 \uac83\uc744 \ucd94\ucc9c\n\u2219 \uc8fc\ub958\uc5d0 \uad00\uc2ec\uc774 \uc788\ub294 \uace0\uac1d\uacfc \ubc29\ubb38\ud55c\ub2e4\uba74 \uc88b\uc740 \uc120\ud0dd\uc784\n\u2219 \ub8f8\uc758 \uacbd\uc6b0 1\uc8fc\uc77c \uc804\uc5d0\ub294 \uc608\uc57d\ud558\ub294 \uac83 \ucd94\ucc9c", "lat": 37.5046, "lng": 127.0051}, {"id": "r23", "name": "\ub86f\ub370\ud638\ud154 \ub3c4\ub9bc", "region": "\uc911\uad6c", "menu": "\uc911\uc2dd", "detail": "\uc911\uc2dd \ucf54\uc2a4", "addr": "\uc911\uad6c \uc744\uc9c0\ub85c 30 \ub86f\ub370\ud638\ud154\uc11c\uc6b8 \ubcf8\uad00 37\uce35", "tel": "02-317-7101", "station": "\uc2dc\uccad\uc5ed/\uc744\uc9c0\ub85c\uc785\uad6c\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/xY4sJ03E", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5\n\u2219 \ubbf8\uc250\ub9b0\uac00\uc774\ub4dc \uc11c\uc6b8 2024, 2025", "review": "\u2219 \ud2b9\uae09\ud638\ud154 \uc911\uc2dd\ub2f9 \uc911 \uc6b0\ub9ac\uac00 \uc54c\uace0 \uc788\ub294 \uac00\uc7a5 \uc911\uc2dd\ub2f9\ub2e4\uc6b4 \ub290\ub08c\uc758 \uc911\uc2dd\ub2f9\n\u2219 \ud638\ud154 \uc911\uc2dd\ub2f9 \uc911\uc5d0\ub294 \uc0c1\ub300\uc801\uc73c\ub85c \uac00\uc131\ube44\uac00 \uc88b\uc740 \ud3b8\uc784. \ub86f\ub370\ud638\ud154 \uc2dd\ub2f9\uc758 \uacbd\uc6b0 \ud074\ub77c\uc6b0\ub4dc\uc0dd\ub9e5\uc8fc\uac00 \uc77c\ubcf8\uc0dd\ub9e5\uc8fc \uc774\uc0c1\uc73c\ub85c \ub9db\uc788\uc74c\n\u2219 \ud558\uc6b0\uc2a4\uc640\uc778\ub3c4 \ud004\ub7ec\ud2f0\uac00 \uc88b\uc73c\ubbc0\ub85c \uad1c\ud788 \ube44\uc2fc \uc640\uc778\uc2dc\ud0ac \ud544\uc694 \uc5c6\uc774 \ud558\uc6b0\uc2a4\uc640\uc778 \uc8fc\ubb38\ud558\ub294 \uac83\ub3c4 \uad1c\ucc2e\uc74c", "lat": 37.5659, "lng": 126.9818}, {"id": "r24", "name": "\ud3ec\uc2dc\uc98c\uc2a4\ud638\ud154\uc11c\uc6b8 \uc720\uc720\uc548", "region": "\uc885\ub85c\uad6c", "menu": "\uc911\uc2dd", "detail": "\ubd81\uacbd\uc624\ub9ac, \ucf54\uc2a4", "addr": "\uc11c\uc6b8 \uc885\ub85c\uad6c \uc0c8\ubb38\uc548\ub85c 97 11\uce35", "tel": "02-6388-5500", "station": "\uad11\ud654\ubb38\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/x2jQtGuG", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5\n\u2219 \ud504\ub77c\uc774\ube57 \ub8f8: 8\uac1c (3-24\uc778)", "review": "\u2219 \ubd84\uc704\uae30\uac00 \uc88b\uc74c\n\u2219 \ucd5c\uadfc \ubd81\uacbd\uc624\ub9ac\uac00 \ub9db\uc788\ub294 \uc9d1\ub4e4\uc774 \ub9ce\uc774 \ub298\uc5b4\ub09c \ud3b8\uc778\ub370(\ub355\ud6c4\uc120\uc0dd\uacfc \uac19\uc740 \ud504\ub79c\ucc28\uc774\uc988\ub3c4 \uc88b\uc74c) \uadf8\ub798\ub3c4\uc720\uc720\uc548\uc774 \ub9db\uc788\uc74c\n\u2219 \ub8f8\uc744 \uc608\uc57d\ud560 \uacbd\uc6b0 \ucf54\uc2a4\ub97c \ubc18\ub4dc\uc2dc \uc2dc\ucf1c\uc57c \ud558\ub294\ub370 \ucf54\uc2a4\uc5d0 \ub098\uc624\ub294 \uc694\ub9ac\uac00 \ub300\uc911\uc131\uc774 \ub5a8\uc5b4\uc9d0\n\u2219 \ud640\ub3c4 \ubd84\uc704\uae30\uac00 \uc88b\uae30 \ub54c\ubb38\uc5d0 \ud640\uc5d0\uc11c \ubd81\uacbd\uc624\ub9ac + \uc694\ub9ac \uba87 \uac00\uc9c0 \ucd94\uac00\ud574\uc11c \uba39\ub294 \uac83\uc774 \uc88b\uc740 \uc120\ud0dd\uc784", "lat": 37.5705, "lng": 126.9757}, {"id": "r25", "name": "\ub354\ud50c\ub77c\uc790\ud638\ud154 \ub3c4\uc6d0", "region": "\uc911\uad6c", "menu": "\uc911\uc2dd", "detail": "\uc911\uc2dd \ucf54\uc2a4", "addr": "\uc911\uad6c \uc18c\uacf5\ub85c 119 \ub354\ud50c\ub77c\uc790 \ud638\ud154 3\uce35", "tel": "02-310-7300", "station": "\uc2dc\uccad\uc5ed/\uc744\uc9c0\ub85c\uc785\uad6c\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/GBFHgT5L", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5", "review": "\u2219 \ubaa8\ubc94\uc801\uc778 \uc911\uc2dd\ub2f9\uc784\n\u2219 \ub9db, \ubd84\uc704\uae30 \ubaa8\ub450 \uc88b\uc74c\n\u2219 \uc2dc\uccad\uc5ed \uad11\uc7a5\uc774 \ubcf4\uc774\ub294 \ub8f8\uc73c\ub85c \uc608\uc57d\ud558\ub294 \uac83 \ucd94\ucc9c", "lat": 37.5643, "lng": 126.9798}, {"id": "r26", "name": "\uc911\ud654\uac1d\uc794 \uc218", "region": "\uc6a9\uc0b0\uad6c", "menu": "\uc911\uc2dd", "detail": "\uc911\uad6d\uc74c\uc2dd", "addr": "\uc11c\uc6b8 \uc6a9\uc0b0\uad6c \ud55c\uac15\ub300\ub85c48\uae38 17-6 1\uce35", "tel": "0507-1440-5338", "station": "\uc0bc\uac01\uc9c0\uc5ed/\uc2e0\uc6a9\uc0b0\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/5N15CHGQ", "memo": "", "review": "\u2219 \uce90\uc8fc\uc5bc\ud55c \ubd84\uc704\uae30\uc758 \uc2dd\ub2f9\uc73c\ub85c 4\uba85 \uc774\uc0c1 \ud65c\uae30\ucc2c \ubd84\uc704\uae30\uc5d0\uc11c \ud68c\uc2dd\ud558\uae30 \uc88b\uc74c\n\u2219 \uc6a9\uc0b0\uc5ed \uadfc\ucc98\ub77c\uc11c \ud638\ub0a8\uc120\uc744 \ud0c0\uace0 \uc774\ub3d9\ud558\ub294 \uace0\uac1d\ub4e4\uacfc \uc2dd\uc0ac\ud558\uae30\uc5d0 \uc7a5\uc18c\uc801 \uc774\uc810\uc774 \uc788\uc74c", "lat": 37.5428, "lng": 126.9728}, {"id": "r27", "name": "\ubabd\uc911\ud5cc \uac15\ub0a8\uc810", "region": "\uc11c\ucd08\uad6c", "menu": "\uc911\uc2dd", "detail": "\uc911\uad6d\uc74c\uc2dd", "addr": "\uc11c\uc6b8 \uc11c\ucd08\uad6c \uc0ac\uc784\ub2f9\ub85c 157 \ub9bf\ud0c0\uc6cc B1F", "tel": "02-588-3363", "station": "\uac15\ub0a8\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/GvcTOVb8", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5", "review": "\u2219 \ubabd\uc911\ud5cc\uc740 \ud638\ud154 \uc911\uc2dd\ub2f9 \uc678\uc5d0 \ud504\ub79c\ucc28\uc774\uc988 \uc911\uc2dd\ub2f9 \uc911\uc5d0\ub294 \ud004\ub7ec\ud2f0\uac00 \ub192\uc740 \uc911\uc2dd\ub2f9\uc784\n\u2219 \ubd84\uc704\uae30 \ub9db \ubaa8\ub450 \uc88b\uc544\uc11c \uace0\uac1d\ubaa8\uc784\uc5d0 \uc801\ud569\ud568", "lat": 37.503, "lng": 127.0215}, {"id": "r28", "name": "\ub300\uaddc\uc2a4\uc2dc", "region": "\uc885\ub85c\uad6c", "menu": "\uc77c\uc2dd", "detail": "\uc624\ub9c8\uce74\uc138", "addr": "\uc11c\uc6b8 \uc885\ub85c\uad6c \ub3d9\uc22d3\uae38 1 1\uce35", "tel": "02-766-0821", "station": "\ud61c\ud654\uc5ed", "room": "X", "cork": "O", "naver": "https://naver.me/FlZndcaH", "memo": "\u2219 \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \n(\ub9e4\uc77c \uc624\ud6c4 11\uc2dc\uc5d0 \ud55c\ub2ec \ub4a4 \uc608\uc57d \uc624\ud508)", "review": "\u2219 \uc810\uc2ec 6\ub9cc \uc6d0 / \uc800\ub141 12\ub9cc \uc6d0\uc5d0 \uc6b4\uc601\ud558\ub294 \uc624\ub9c8\uce74\uc138 \uc2a4\uc2dc\n\u2219 \uc0ac\uc7a5\ub2d8 1\uc778\uc774 \uc6b4\uc601\ud558\ub294 \uc2dd\ub2f9\uc73c\ub85c \ucd1d \uc88c\uc11d 8\uc11d\n\u2219 \uac00\uaca9 \ub300\ube44 \ud004\ub7ec\ud2f0\uac00 \uc88b\uc74c\n\u2219 \ub8f8\uc774 \uc5c6\uc5b4 \ud504\ub77c\uc774\ubc84\uc2dc\uac00 \uc9c0\ucf1c\uc9c0\uae30\ub294 \uc5b4\ub824\uc6c0\n\u2219 \uace0\uac1d\uacfc \ud3b8\uc548\ud55c \ubd84\uc704\uae30\uc5d0\uc11c \uc2a4\uc2dc\ub97c \uba39\uae30\uc5d0\ub294 \uc88b\uc740 \uc2dd\ub2f9\uc784\n\u2219 \ub300\ud559\ub85c\uc5d0 \uc704\uce58\ud558\uace0 \uc788\uc5b4 \uc811\uadfc\uc131\uc774 \uc88b\uc740 \ud3b8\uc740 \uc544\ub2d8\n\u2219 \uc790\uccb4 \uc8fc\ucc28\uc7a5\uc740 \uc5c6\uace0 \uac74\ubb3c \ub4a4\ud3b8\uc5d0 \uc8fc\ucc28\ud558\uba74 \ubc1c\ub808\uc11c\ube44\uc2a4\ub97c \ud574\uc8fc\uace0 \uc788\uc74c", "lat": 37.5821, "lng": 127.0019}, {"id": "r29", "name": "\uc2e0\uc218\uc0ac", "region": "\uc11c\ucd08\uad6c", "menu": "\uc77c\uc2dd", "detail": "\uc2a4\uc2dc, \uc0ac\uc2dc\ubbf8", "addr": "\uc11c\uc6b8 \uc11c\ucd08\uad6c \ub0a8\ubd80\uc21c\ud658\ub85c 2575 \uc2e0\ubc29\ube4c\ub529", "tel": "02-586-9422", "station": "\uc591\uc7ac\uc5ed", "room": "O", "cork": "\ud655\uc778\uc608\uc815", "naver": "https://naver.me/5huabs1z", "memo": "", "review": "\u2219 \uc591\uc7ac\uc5ed \uadfc\ucc98\uc5d0 \uc704\uce58\ud55c \uc815\ud1b5 \uc77c\uc2dd\n\u2219 \uc74c\uc2dd \ud6cc\ub96d\ud568\n\u2219 \uace0\uac1d \ubbf8\ud305\uc740 \uc0ac\uc804 \uc608\uc57d\ud574\uc11c \uac1c\ubcc4\ub8f8\uc5d0\uc11c \uc9c4\ud589\ud558\ub294 \uac83\uc774 \uc801\ud569\ud568", "lat": 37.4897, "lng": 127.0068}, {"id": "r30", "name": "\uc6e8\uc2a4\ud2f4\uc870\uc120 \uc2a4\uc2dc\uc870", "region": "\uc911\uad6c", "menu": "\uc77c\uc2dd", "detail": "\uc2a4\uc2dc \uc624\ub9c8\uce74\uc138", "addr": "\uc911\uad6c \uc18c\uacf5\ub85c 106 \uc6e8\uc2a4\ud2f4\uc870\uc120\ud638\ud154 20\uce35", "tel": "02-317-0373", "station": "\uc2dc\uccad\uc5ed/\uc744\uc9c0\ub85c\uc785\uad6c\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/Fy2FbprD", "memo": "\u2219  \ubbf8\uc250\ub9b0\uac00\uc774\ub4dc \uc11c\uc6b8 2024", "review": "\u2219 \uac00\uaca9\uc774 \ube44\uc2fc \uac83 \uc678\uc5d0\ub294 \ubd84\uc704\uae30, \ub9db \ubaa8\ub450 \uad1c\ucc2e\uc74c", "lat": 37.5648, "lng": 126.9813}, {"id": "r31", "name": "\uc77c\ubbf8\uc7a5\uc5b4", "region": "\uc6a9\uc0b0\uad6c", "menu": "\uc77c\uc2dd", "detail": "\ud574\ubb3c, \uc0dd\uc120\uc694\ub9ac", "addr": "\uc11c\uc6b8 \uc6a9\uc0b0\uad6c \ud6c4\uc554\ub85c57\uae38 35-15", "tel": "02-777-4380", "station": "\uc11c\uc6b8\uc5ed", "room": "X", "cork": "X", "naver": "https://naver.me/x7ndf1Mh", "memo": "", "review": "\ud655\uc778\uc608\uc815", "lat": 37.5448, "lng": 126.9788}, {"id": "r32", "name": "\ub3d9\ud638\ubbfc\ubb3c\uc7a5\uc5b4", "region": "\uc911\uad6c", "menu": "\uc77c\uc2dd", "detail": "\uc7a5\uc5b4", "addr": "\uc11c\uc6b8 \uc911\uad6c \uc138\uc885\ub300\ub85c18\uae38 6-1", "tel": "02-752-5237", "station": "\uc2dc\uccad\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/FEUpJdRT", "memo": "", "review": "\ud655\uc778\uc608\uc815", "lat": 37.565, "lng": 126.9755}, {"id": "r33", "name": "\ucda9\uc815\uc6d0", "region": "\uc11c\ub300\ubb38\uad6c", "menu": "\uae30\ud0c0", "detail": "\uc640\uc778", "addr": "\uc11c\uc6b8 \uc11c\ub300\ubb38\uad6c \ucda9\uc815\ub85c4\uae38 5-18", "tel": "0507-1337-7568", "station": "\ucda9\uc815\ub85c\uc5ed", "room": "O", "cork": "X", "naver": "https://naver.me/FzSZ7gOG", "memo": "\u2219 \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5", "review": "\u2219 \ucda9\uc815\ub85c\uc5ed \ubd80\uadfc\uc5d0\uc11c \uac08 \uc218 \uc788\ub294 \uc640\uc778\ubc14\uc784\n\u2219 \uace0\uae09\uc2a4\ub7fd\uc9c0\ub294 \uc54a\uc740\ub370 \ud3b8\uc548\ud55c \ubd84\uc704\uae30\uc5d0\uc11c \uc640\uc778\uc744 \ub9c8\uc2dc\uae30\uc5d0 \uc88b\uc74c\n\u2219 3-4\uc778 \uc815\ub3c4 \ud68c\uc2dd \ud6c4 \ubaa8\uc784\uc744 \ud558\uae30\uc5d0 \uc88b\uc740 \uacf3\uc784.", "lat": 37.5586, "lng": 126.963}, {"id": "r34", "name": "\ubcf4\ub370\uac00\uc2a4\ub204", "region": "\uad00\uc545\uad6c", "menu": "\uae30\ud0c0", "detail": "\uc640\uc778", "addr": "\uc11c\uc6b8 \uad00\uc545\uad6c \uad00\uc545\ub85c 105 \uc9c0\ud558 1\ud638", "tel": "0507-1385-7268", "station": "\uc11c\uc6b8\ub300\uc785\uad6c\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/ID3IBbi4", "memo": "\u2219 \ud55c\uc6b0 \uc2a4\ud14c\uc774\ud06c \uc138\ud2b8 \uc8fc\ubb38 \uc2dc, \uc6d0\ud14c\uc774\ube14 \ub2e4\uc774\ub2dd \uc11c\ube44\uc2a4\ub85c \ub77c\uc6b4\uc9c0 \uacf5\uac04\uc744 \ub2e8\ub3c5\uc73c\ub85c \uc0ac\uc6a9\ud560 \uc218 \uc788\uc74c.(\ub8f8 \ucc28\uc9c0 10\ub9cc\uc6d0)", "review": "\u2219 \uc11c\uc6b8\ub300 \uadfc\ucc98\uc5d0 \uc788\ub294 1\uc778 \uc624\ub108\uc170\ud504\uac00 \uc6b4\uc601\ud558\ub294 \uc640\uc778\ubc14(\uc2dd\ub2f9)\uc784\n\u2219 \uc6d0\ud14c\uc774\ube14\ub9cc \ubc1b\ub294\ub370 \uc624\ubd93\ud55c \ubd84\uc704\uae30\uc5d0\uc11c \uc2dd\uc0ac\ud558\uace0 \uc2f6\uc73c\uba74 \uc88b\uc740 \uc7a5\uc18c\uc784(\uac00\uaca9\uc740 1\uc778\ub2f9 10\ub9cc \uc6d0 \uc815\ub3c4\uc784).", "lat": 37.4838, "lng": 126.9526}, {"id": "r35", "name": "\ud53c\uc5d0\ub974\uac00\ub2c8\uc5d0\ub974\uc11c\uc6b8", "region": "\uc911\uad6c", "menu": "\uc591\uc2dd", "detail": "\ud504\ub80c\uce58 \ub2e4\uc774\ub2dd \ucf54\uc2a4", "addr": "\uc911\uad6c \uc744\uc9c0\ub85c 30 \ub86f\ub370\ud638\ud154\uc11c\uc6b8 Executive Tower 35\uce35", "tel": "02-317-7181", "station": "\uc2dc\uccad\uc5ed/\uc744\uc9c0\ub85c\uc785\uad6c\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/5ZJxArz8", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5\n\u2219 \ubbf8\uc250\ub9b0\uac00\uc774\ub4dc \uc11c\uc6b8 2024, 2025\n\u2219 \ub4dc\ub808\uc2a4\ucf54\ub4dc: \uc2a4\ub9c8\ud2b8\uce90\uc8fc\uc5bc \ub610\ub294 \ube44\uc988\ub2c8\uc2a4\uce90\uc8fc\uc5bc/\ub0a8\uc131\ubd84\uc758 \uacbd\uc6b0\uc5d0\ub294 \uc18c\ub9e4\uac00 \uc788\ub294 \uc0c1\uc758\uc640 \uae34 \ubc14\uc9c0", "review": "\u2219 \uacfc\uac70 \uc810\uc2ec\uc774 12\ub9cc \uc6d0 \uc815\ub3c4\uc600\uc73c\ub098 \ud604\uc7ac\ub294 1\uc778 18\ub9cc \uc6d0\uc73c\ub85c \uac00\uaca9\uc774 \ub192\uc544\uc84c\uc74c, \uc800\ub141\uc740 1\uc778 28\ub9cc \uc6d0, 32\ub9cc \uc6d0 \ucf54\uc2a4 \uc6b4\uc601\n\u2219 \uc18c\uc218 \uc778\uc6d0\uacfc \uc870\uc6a9\ud55c \ubd84\uc704\uae30\uc758 \uc2dd\uc0ac\ub97c \ud560 \ub54c \uace0\ub824\ud560 \uc218 \uc788\uc74c", "lat": 37.566, "lng": 126.982}, {"id": "r36", "name": "\ub04c\ub808\ub9dd\uafb8\uafb8", "region": "\uc6a9\uc0b0\uad6c", "menu": "\uc591\uc2dd", "detail": "\ud504\ub791\uc2a4 \uc74c\uc2dd", "addr": "\uc11c\uc6b8 \uc6a9\uc0b0\uad6c \uc18c\uc6d4\ub85c2\uae38 27 \uc9c0\uce35", "tel": "02-6953-2771", "station": "\uc11c\uc6b8\uc5ed/\ud68c\ud604\uc5ed", "room": "X", "cork": "O", "naver": "https://naver.me/Gsj23WS0", "memo": "", "review": "\u2219 \uac00\uc815\uc2dd \ud504\ub80c\uce58\ub85c \uc624\ubd93\ud55c \ubaa8\uc784\uc5d0 \uc801\ud569\ud568\n\u2219 \uac00\uc131\ube44\ub3c4 \uc88b\uc740 \ud3b8\uc784\n\u2219 \ub974\uc170\ud504\ube14\ub8e8\uc640 \ud568\uaed8 \uace0\ub824\ud560 \uc218 \uc788\ub294 \ud68c\uc0ac \uadfc\ucc98 \ud504\ub80c\uce58\uc784", "lat": 37.5489, "lng": 126.9773}, {"id": "r37", "name": "\uc6e8\uc2a4\ud2f4\uc870\uc120 \ub098\uc778\uc2a4 \uac8c\uc774\ud2b8", "region": "\uc911\uad6c", "menu": "\uc591\uc2dd", "detail": "\ud504\ub791\uc2a4 \uc74c\uc2dd", "addr": "\uc11c\uc6b8 \uc911\uad6c \uc18c\uacf5\ub85c 106 L\uce35 \ub098\uc778\uc2a4\uac8c\uc774\ud2b8", "tel": "02-317-0366", "station": "\uc2dc\uccad\uc5ed/\uc744\uc9c0\ub85c\uc785\uad6c\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/5jJTg1xX", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5\n\u2219 \ud638\ud154 / \ubbf8\uc250\ub9b0\uac00\uc774\ub4dc \uc11c\uc6b8 2024, 2025", "review": "\u2219 \uc88b\uc740 \ubd84\uc704\uae30\uc5d0\uc11c \uc2a4\ud14c\uc774\ud06c\ub97c \uba39\uae30\uc5d0 \uc88b\uc740 \uc2dd\ub2f9\n\u2219 \uc810\uc2ec\uc5d0 \ube44\uc988\ub2c8\uc2a4\ub7f0\uce58\ub97c \ub9ce\uc774 \uba39\ub294 \ubd84\uc704\uae30\uc784 \n\u2219 \uc591\uace0\uae30\ub3c4 \ub9db\uc788\uc74c\n\u2219 \uc2a4\ud14c\uc774\ud06c\uc758 \uacbd\uc6b0 \ud55c\ub0a8\ub3d9\uc5d0 \uc788\ub294 \uc2a4\ubbf8\uc2a4\uc564\uc6d4\ub80c\uc2a4\ud0a4\ub3c4 \ucd94\ucc9c", "lat": 37.5646, "lng": 126.9811}, {"id": "r38", "name": "\uc2a4\ubbf8\uc2a4\uc564\uc6d4\ub80c\uc2a4\ud0a4", "region": "\uc6a9\uc0b0\uad6c", "menu": "\uc591\uc2dd", "detail": "\uc2a4\ud14c\uc774\ud06c", "addr": "\uc11c\uc6b8 \uc6a9\uc0b0\uad6c \ub3c5\uc11c\ub2f9\ub85c 71 7F-8F", "tel": "0507-1343-9880", "station": "\ud55c\ub0a8\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/GBFH5ejs", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5", "review": "\ud655\uc778\uc608\uc815", "lat": 37.5311, "lng": 127.0003}, {"id": "r39", "name": "\ub300\uc9c0\uc815\uc721\uc810\uc2dd\ub2f9", "region": "\uc11c\ucd08\uad6c", "menu": "\uace0\uae30", "detail": "\ub3fc\uc9c0\uace0\uae30, \uc18c\uace0\uae30", "addr": "\uc11c\uc6b8 \uc11c\ucd08\uad6c \uac15\ub0a8\ub300\ub85c101\uc548\uae38 16 1\uce35", "tel": "02-546-4202", "station": "\uc2e0\uc0ac\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/F5DoTHkP", "memo": "", "review": "\u2219 \uc2e0\uc0ac\uc5ed \ubd80\uadfc\uc5d0 \uc704\uce58\ud55c \uc18c\uace0\uae30\uad6c\uc774 \uc804\ubb38\uc810\n\u2219 \uc0dd\ub4f1\uc2ec, \ucc28\ub3cc\ubc15\uc774\uac00 \ub9db\uc788\uace0 \uc548\ucc3d\uc0b4\uc740 \uc804\ud654\ub85c \ubbf8\ub9ac \uc8fc\ubb38\ud574\uc57c \uac00\ub2a5\ud568\n\u2219 \ud488\uaca9\uc788\ub294 \ubd84\uc704\uae30\ub294 \uc804\ud600 \uc544\ub2c8\uace0 \uac00\uc11c \uc2dd\uc0ac\ub97c \ud558\uba74 \uc790\uafb8 \uc18c\uc8fc\ub97c \ub9c8\uc154\uc57c \ud560 \uac83 \uac19\uc740 \ub290\ub08c\uc758 \uc2dd\ub2f9\uc784\n\u2219 \uace0\uae30 \ud004\ub7ec\ud2f0\ub294 \ub9e4\uc6b0 \ud6cc\ub96d\ud568", "lat": 37.504, "lng": 127.027}, {"id": "r40", "name": "\uc6b0\ubbf8\uac01", "region": "\uac15\ub0a8\uad6c", "menu": "\uace0\uae30", "detail": "\uc18c\uace0\uae30", "addr": "\uc11c\uc6b8 \uac15\ub0a8\uad6c \uc5b8\uc8fc\ub85c141\uae38 6 \ubc31\ud5a5\ube4c\ub529 1\uce35 \uc6b0\ubbf8\uac01", "tel": "02-541-8802", "station": "\ud559\ub3d9\uc5ed/\uac15\ub0a8\uad6c\uccad\uc5ed", "room": "O", "cork": "\ud655\uc778\uc608\uc815", "naver": "https://naver.me/5ch6ZJ5a", "memo": "", "review": "\u2219 \uac15\ub0a8 \uc744\uc9c0\ubcd1\uc6d0 \uc0ac\uac70\ub9ac \uadfc\ucc98\uc5d0 \uc704\uce58\ud55c \uc18c\uace0\uae30\uad6c\uc774\uc9d1\uc73c\ub85c \ub8f8 \uc608\uc57d\ud560 \uacbd\uc6b0 \ubd84\uc704\uae30 \uc788\uac8c \uc2dd\uc0ac \uac00\ub2a5\ud568\n\u2219 \uace0\uae30\ub9db\uc774 \uc88b\uc73c\ub098 \uac00\uaca9\uc740 \ube44\uc2fc \ud3b8\uc784", "lat": 37.5068, "lng": 127.0502}, {"id": "r41", "name": "\ucc3d\uace043 \uc2dc\uccad\uc810", "region": "\uc911\uad6c", "menu": "\uace0\uae30", "detail": "\uc18c\uace0\uae30", "addr": "\uc11c\uc6b8 \uc911\uad6c \uc11c\uc18c\ubb38\ub85c 120 1\uce35", "tel": "0507-1445-7955", "station": "\uc2dc\uccad\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/FhULmWSY", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5", "review": "\u2219 \uc548\uc815\ub41c \ud004\ub7ec\ud2f0\uc758 \uc18c\uace0\uae30 \uad6c\uc774\uc9d1\uc784\n\u2219 \uc804\uccb4\uc801\uc73c\ub85c \ub8f8\uc774 \ub9ce\uc544\uc11c \ubd84\uc704\uae30\uac00 \ub2e4\uc18c \uc2dc\ub044\ub7ec\uc6b4 \ub290\ub08c\n\u2219 4\uba85 \uc774\uc0c1 \ud68c\uc2dd\uc5d0 \uc801\ud569\ud568\n\u2219 \uae30\ubcf8\ubc18\ucc2c\uc73c\ub85c \ub098\uc624\ub294 \ud30c\uc808\uc784\uc744 \ub108\ubb34 \ub9ce\uc774 \uba39\uc9c0 \uc54a\ub3c4\ub85d \uc8fc\uc758\ud560 \ud544\uc694 \uc788\uc74c", "lat": 37.5635, "lng": 126.977}, {"id": "r42", "name": "\uc6b0\ub2f4\uc815", "region": "\uad00\uc545\uad6c", "menu": "\uace0\uae30", "detail": "\uc18c\uace0\uae30", "addr": "\uc11c\uc6b8\ud2b9\ubcc4\uc2dc \uad00\uc545\uad6c 4\uce35", "tel": "0507-1414-6073", "station": "\uc0ac\ub2f9\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/G386VEbi", "memo": "\u2219 \ub124\uc774\ubc84, \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5\n\u2219 \uce90\uce58\ud14c\uc774\ube14: \ub9e4\uc77c \uc624\uc804 12\uc2dc\uc5d0 60\uc77c\uac04 \uc608\uc57d \uc624\ud508", "review": "\u2219 \uc0ac\ub2f9\uc5ed\uc5d0 \uc704\uce58\ud55c \uc18c\uace0\uae30 \uc804\ubb38\uc810\uc73c\ub85c \ub9db, \ubd84\uc704\uae30 \ubaa8\ub450 \ud6cc\ub96d\ud568\n\u2219 \uc0ac\ub2f9\uc5ed \ubd80\uadfc \uc57d\uc18d\uc744 \uc815\ud560 \ub54c \uace0\ub824\ud560 \uc218 \uc788\ub294 \uc7a5\uc18c\uc784", "lat": 37.484, "lng": 126.9528}, {"id": "r43", "name": "\ubaa8\uc5f0 \ub9c8\ud3ec\ubcf8\uc810", "region": "\ub9c8\ud3ec\uad6c", "menu": "\uace0\uae30", "detail": "\uc18c\uace0\uae30", "addr": "\uc11c\uc6b8 \ub9c8\ud3ec\uad6c \ud1a0\uc815\ub85c 318 \uc601\uc6b0\ube4c\ub529 1\uce35 \ubaa8\uc5f0 \ub9c8\ud3ec\ubcf8\uc810", "tel": "02-704-0770", "station": "\ub9c8\ud3ec\uc5ed", "room": "O", "cork": "O", "naver": "https://naver.me/5CW7wcl3", "memo": "\u2219 \uce90\uce58\ud14c\uc774\ube14 \uc608\uc57d \uac00\ub2a5", "review": "\u2219 \ub9c8\ud3ec \uacf5\uc601\uc8fc\ucc28\uc7a5 \ucd08\uc785\uc5d0 \uc788\ub294 \uba39\uc790\uace8\ubaa9\uc5d0 \uc704\uce58(\ubc14\ub85c \uc606\uc774 \uc124\ub801\ud0d5\uc73c\ub85c \uc720\uba85\ud55c \ub9c8\ud3ec\uc625)\n\u2219 \ub9c8\ud3ec \uc18c\uace0\uae30\uc804\ubb38\uc810 \uc911 \ubd84\uc704\uae30, \ub9db\uc73c\ub85c \ucd5c\uc0c1\uc704\uad8c\uc5d0 \uc18d\ud568\n\u2219 \uc548\uc2ec\uc774 \uc81c\uc77c \ub9db\uc788\uc74c\n\u2219 \uac00\uaca9\uc740 \ub192\uc740 \ud3b8\uc784", "lat": 37.5492, "lng": 126.9507}];
+var filtered=[],selR=new Set(),selM=new Set();
+var map,markers={},activeId=null,editId=null,isAdd=false,dbRef=null,sbOn=true;
+function $id(id){return document.getElementById(id);}
+function showT(msg){var t=$id('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2800);}
+function lk(t){if(!t)return'';return t.replace(/(https?:\/\/[^\s\n<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>');}
+
+function initMap(){
+  map=L.map('map',{
+    center:[37.555,126.977],zoom:13,
+    zoomControl:true,
+    preferCanvas:true,
+    tap:false
+  });
+  var vw=L.tileLayer('https://xdworld.vworld.kr/2d/Base/service/{z}/{x}/{y}.png',{
+    attribution:'\u00a9 \uad6d\ud1a0\uc9c0\ub9ac\uc815\ubcf4\uc6d0',maxZoom:19,minZoom:6,
+    keepBuffer:2,updateWhenIdle:true,crossOrigin:true,
+    errorTileUrl:'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+  });
+  var osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'\u00a9 OpenStreetMap',maxZoom:19,keepBuffer:2,updateWhenIdle:true
+  });
+  var ve=0;
+  vw.on('tileerror',function(){ve++;if(ve>5&&map.hasLayer(vw)){map.removeLayer(vw);osm.addTo(map);}});
+  vw.addTo(map);
+  map.setMaxBounds([[36.5,126.0],[38.2,128.5]]);
+  renderMarkers();
+}
+
+function buildPopHTML(r){
+  var c=MC[r.menu]||'#6b7280',e=ME[r.menu]||'\ud83c\udf7d';
+  var rp=r.room==='O'?'<span class="ppl pply">\ud83d\udeaa \ub8f8\uac00\ub2a5</span>':'<span class="ppl ppln">\ud83d\udeab \ub8f8\uc5c6\uc74c</span>';
+  var cp=r.cork==='O'?'<span class="ppl pply">\ud83c\udf77 \ucf5c\ud0a4\uc9c0\uac00\ub2a5</span>':r.cork==='X'?'<span class="ppl ppln">\ud83c\udf77 \ucf5c\ud0a4\uc9c0\ubd88\uac00</span>':'<span class="ppl pplu">\ud83c\udf77 \ud655\uc778\uc608\uc815</span>';
+  var nb=r.naver&&r.naver.indexOf('http')===0?'<a class="nb" href="'+r.naver+'" target="_blank">\ud83d\udfe2 \ub124\uc774\ubc84</a>':'';
+  var rid=r.id;
+  return '<div class="pph">'
+    +'<h3>'+e+' '+r.name+'</h3>'
+    +'<div class="ppbgs"><span class="ppbg ppbgr">'+r.region+'</span>'
+    +'<span class="ppbg" style="background:'+c+';color:#fff">'+r.menu+' \u00b7 '+r.detail+'</span></div></div>'
+    +'<div class="ppb">'
+    +(r.addr?'<div class="ppr"><span>\ud83d\udccd </span><span>'+r.addr+'</span></div>':'')
+    +(r.station?'<div class="ppr"><span>\ud83d\ude87 </span><span>'+r.station+'</span></div>':'')
+    +(r.tel?'<div class="ppr"><span>\ud83d\udcde </span><span>'+r.tel+'</span></div>':'')
+    +'<div class="ppls">'+rp+cp+'</div>'
+    +(r.memo?'<div class="ppsl">\ud83d\udcdd \uba54\ubaa8</div><div class="ppmo">'+lk(r.memo)+'</div>':'')
+    +(r.review?'<div class="ppsl">\ud83d\udcac \ucf54\uba58\ud2b8</div><div class="pprv">'+lk(r.review)+'</div>':'')
+    +'</div>'
+    +'<div class="ppft">'+nb
+    +'<button class="eb" onclick="openEdit(\''+rid+'\')">\u270f\ufe0f \uc218\uc815</button></div>';
+}
+
+function mkIcon(menu,active){
+  var c=MC[menu]||'#6b7280',e=ME[menu]||'\ud83c\udf7d',s=active?40:30;
+  return L.divIcon({className:'',
+    html:'<div style="width:'+s+'px;height:'+s+'px;background:'+c+';border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:'+(active?'3px':'2px')+' solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center"><span style="transform:rotate(45deg);font-size:'+(active?16:12)+'px;line-height:1">'+e+'</span></div>',
+    iconSize:[s,s],iconAnchor:[s/2,s]});
+}
+
+function renderMarkers(){
+  Object.values(markers).forEach(function(m){map.removeLayer(m);});
+  markers={};
+  filtered.forEach(function(r){
+    var mk=L.marker([r.lat,r.lng],{
+      icon:mkIcon(r.menu,r.id===activeId),
+      zIndexOffset:r.id===activeId?100:0
+    }).addTo(map);
+    mk.bindPopup(buildPopHTML(r),{
+      maxWidth:400,minWidth:280,
+      autoPan:false,
+      closeButton:true
+    });
+    mk.on('click',function(){
+      var clickedId=r.id;
+      activeId=clickedId;
+      document.querySelectorAll('.ri').forEach(function(el){el.classList.remove('on');});
+      var li=$id('li-'+clickedId);
+      if(li){
+        li.classList.add('on');
+        // 사이드바 내부 스크롤만
+        var rl=$id('rl');
+        if(rl){rl.scrollTop=li.offsetTop-rl.offsetTop-60;}
+      }
+      renderMarkers();
+      setTimeout(function(){
+        if(markers[clickedId])markers[clickedId].openPopup();
+      },50);
+    });
+    // popupopen: 수정버튼 연결 + 팝업 터치를 지도로 전달
+    (function(rid){
+      mk.on('popupopen',function(){
+        var popup=mk.getPopup();
+        if(!popup)return;
+        var el=popup.getElement();
+        if(!el)return;
+
+        // 수정 버튼 연결
+        var btn=el.querySelector('.eb');
+        if(btn){
+          btn.onclick=null;
+          btn.addEventListener('click',function(e){
+            e.stopPropagation();
+            openEdit(rid);
+          });
+        }
+
+        // 좌우 드래그만 지도로 전달, 상하는 팝업 스크롤
+        var wrapper=el.querySelector('.leaflet-popup-content-wrapper');
+        if(!wrapper)return;
+
+        var startX,startY,startMapX,startMapY,direction=null;
+        var mapCont=map.getContainer();
+
+        wrapper.addEventListener('touchstart',function(e){
+          if(e.target.closest('button,a'))return;
+          var t=e.touches[0];
+          startX=t.clientX; startY=t.clientY; direction=null;
+          // 지도 드래그 시작 준비
+          var rect=mapCont.getBoundingClientRect();
+          startMapX=t.clientX-rect.left;
+          startMapY=t.clientY-rect.top;
+        },{passive:true});
+
+        wrapper.addEventListener('touchmove',function(e){
+          if(e.target.closest('button,a'))return;
+          var t=e.touches[0];
+          var dx=t.clientX-startX;
+          var dy=t.clientY-startY;
+          // 방향 첫 판별
+          if(!direction){
+            if(Math.abs(dx)>8&&Math.abs(dx)>Math.abs(dy)*1.5){
+              direction='h'; // 좌우
+            } else if(Math.abs(dy)>8){
+              direction='v'; // 상하 → 팝업 스크롤
+              return;
+            } else {
+              return;
+            }
+          }
+          if(direction==='v')return;
+          // 좌우: 지도 pan
+          map.panBy([-dx*0.8, 0],{animate:false,duration:0});
+          startX=t.clientX; startY=t.clientY;
+        },{passive:true});
+
+        wrapper.addEventListener('touchend',function(e){
+          direction=null;
+        },{passive:true});
+      });
+    })(r.id);
+    markers[r.id]=mk;
+  });
+  $id('badge').textContent=filtered.length+'\uac1c';
+}
+
+function selFromList(id){
+  activeId=id;
+  document.querySelectorAll('.ri').forEach(function(el){el.classList.remove('on');});
+  var li=$id('li-'+id);
+  if(li){
+    li.classList.add('on');
+    // 사이드바 내부 스크롤만 (페이지 스크롤 방지)
+    var rl=$id('rl');
+    if(rl){rl.scrollTop=li.offsetTop-rl.offsetTop-60;}
+  }
+  var r=DATA.find(function(x){return x.id===id;});
+  if(!r)return;
+  renderMarkers();
+  // 지도 이동 없이 팝업만 열기
+  setTimeout(function(){if(markers[id])markers[id].openPopup();},50);
+}
+
+function menuCls(m){
+  var map={'한식':'tgm-h','중식':'tgm-c','일식':'tgm-j','양식':'tgm-y','고기':'tgm-g','기타':'tgm-e'};
+  return map[m]||'';
+}
+function buildChips(){
+  $id('rc').innerHTML=REGIONS.map(function(v){return'<span class="chip" data-v="'+v+'">'+v+'</span>';}).join('');
+  $id('mc').innerHTML=MENUS.map(function(v){return'<span class="chip" data-v="'+v+'">'+v+'</span>';}).join('');
+  $id('rc').addEventListener('click',function(e){
+    var el=e.target;if(!el.classList.contains('chip'))return;
+    var v=el.dataset.v;
+    if(selR.has(v)){selR.delete(v);el.classList.remove('ar');}else{selR.add(v);el.classList.add('ar');}
+    applyF();
+  });
+  $id('mc').addEventListener('click',function(e){
+    var el=e.target;if(!el.classList.contains('chip'))return;
+    var v=el.dataset.v;
+    if(selM.has(v)){selM.delete(v);el.classList.remove('am');}else{selM.add(v);el.classList.add('am');}
+    applyF();
+  });
+}
+function applyF(){
+  map.closePopup();activeId=null;
+  filtered=DATA.filter(function(r){return(selR.size===0||selR.has(r.region))&&(selM.size===0||selM.has(r.menu));});
+  renderList();renderMarkers();
+}
+function renderList(){
+  $id('cnt').textContent=filtered.length+'\uac1c';
+  var nr=$id('nores');
+  if(!filtered.length){nr.style.display='block';$id('rl').innerHTML='';return;}
+  nr.style.display='none';
+  $id('rl').innerHTML=filtered.map(function(r){
+    return'<div class="ri'+(r.id===activeId?' on':'')+'" id="li-'+r.id+'" data-id="'+r.id+'">'
+      +'<div class="rn">'+r.name+'</div>'
+      +'<div class="rt"><span class="tg tgr">'+r.region+'</span><span class="tg tgm '+menuCls(r.menu)+'">'+r.menu+'</span>'
+      +'<span style="font-size:10px;color:#9ca3af;margin-left:2px">'+r.detail+'</span></div></div>';
+  }).join('');
+  $id('rl').onclick=function(e){var el=e.target.closest('.ri');if(el)selFromList(el.dataset.id);};
+}
+function togSB(){
+  sbOn=!sbOn;
+  $id('sb').classList.toggle('hide',!sbOn);
+  $id('tog').innerHTML=sbOn?'&#9664;':'&#9654;';
+  setTimeout(function(){map.invalidateSize();},280);
+}
+function openModal(){$id('moOverlay').classList.add('open');}
+function closeModal(){$id('moOverlay').classList.remove('open');}
+function openEdit(id){
+  var r=DATA.find(function(x){return x.id===id;});if(!r)return;
+  editId=id;isAdd=false;
+  $id('mtit').textContent='\uc2dd\ub2f9 \uc218\uc815';
+  $id('delbtn').style.display='inline-flex';
+  $id('eid').value=id;$id('en').value=r.name||'';$id('er').value=r.region||'\uc911\uad6c';
+  $id('em').value=r.menu||'\ud55c\uc2dd';$id('ed').value=r.detail||'';$id('ea').value=r.addr||'';
+  $id('et').value=r.tel||'';$id('es').value=r.station||'';$id('eroom').value=r.room||'O';
+  $id('ecork').value=r.cork||'O';$id('enav').value=r.naver||'';$id('emo').value=r.memo||'';$id('erv').value=r.review||'';
+  openModal();
+}
+function openAdd(){
+  editId=null;isAdd=true;
+  $id('mtit').textContent='\uc0c8 \uc2dd\ub2f9 \ucd94\uac00';
+  $id('delbtn').style.display='none';
+  ['en','ed','ea','et','es','enav','emo','erv'].forEach(function(f){$id(f).value='';});
+  $id('er').value='\uc911\uad6c';$id('em').value='\ud55c\uc2dd';$id('eroom').value='O';$id('ecork').value='O';
+  openModal();
+}
+function saveR(){
+  var name=$id('en').value.trim();
+  if(!name){showT('\u26a0\ufe0f \uc0c1\ud638\uba85\uc744 \uc785\ub825\ud574\uc8fc\uc138\uc694');return;}
+  var region=$id('er').value,c=RC[region]||[37.555,126.977];
+  var ex=DATA.find(function(x){return x.id===editId;});
+  var d={id:isAdd?'r'+Date.now():editId,name:name,region:region,
+    menu:$id('em').value,detail:$id('ed').value.trim(),addr:$id('ea').value.trim(),
+    tel:$id('et').value.trim(),station:$id('es').value.trim(),room:$id('eroom').value,
+    cork:$id('ecork').value,naver:$id('enav').value.trim(),
+    memo:$id('emo').value.trim(),review:$id('erv').value.trim(),
+    lat:isAdd?c[0]+(Math.random()-.5)*.005:(ex?ex.lat:c[0]),
+    lng:isAdd?c[1]+(Math.random()-.5)*.005:(ex?ex.lng:c[1])};
+  if(isAdd){DATA.push(d);}else{var i=DATA.findIndex(function(x){return x.id===editId;});if(i>=0)DATA[i]=d;}
+  if(dbRef){try{dbRef.child('restaurants').child(d.id).set(d);}catch(e){}}
+  applyF();closeModal();map.closePopup();
+  showT(isAdd?'\u2705 \ucd94\uac00\ub418\uc5c8\uc2b5\ub2c8\ub2e4':'\u2705 \uc218\uc815\ub418\uc5c8\uc2b5\ub2c8\ub2e4');
+  if(!isAdd)selFromList(d.id);
+}
+function delR(){
+  if(!confirm('\uc0ad\uc81c\ud558\uc2dc\uaca0\uc5b4\uc694?'))return;
+  DATA=DATA.filter(function(x){return x.id!==editId;});
+  if(dbRef){try{dbRef.child('restaurants').child(editId).remove();}catch(e){}}
+  applyF();closeModal();map.closePopup();
+  showT('\ud83d\uddd1 \uc0ad\uc81c\ub418\uc5c8\uc2b5\ub2c8\ub2e4');
+}
+function loadXL(event){
+  var file=event.target.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      if(!rows.length){showT('\u26a0\ufe0f \ub370\uc774\ud130 \uc5c6\uc74c');return;}
+      var keys=Object.keys(rows[0]);
+      var fc=function(){for(var i=0;i<arguments.length;i++){if(keys.indexOf(arguments[i])>=0)return arguments[i];}return null;};
+      var nC=fc('\uc0c1 \ud638','\uc0c1\ud638','\uc0c1\ud638\uba85');
+      if(!nC){showT('\u26a0\ufe0f \uc0c1\ud638\uba85 \ucee8\ub7fc \uc5c6\uc74c');return;}
+      var ec={};DATA.forEach(function(r){ec[r.name]=[r.lat,r.lng];});
+      var nd=rows.filter(function(r){return r[nC];}).map(function(row,i){
+        var nm=String(row[nC]||'').trim(),rg=String(row[fc('\uc9c0\uc5ed')||'']||'').trim();
+        var mr=String(row[fc('\uba54\ub274')||'']||'').trim(),mn='\uae30\ud0c0';
+        if(mr.indexOf('\ud55c\uc2dd')>=0)mn='\ud55c\uc2dd';
+        else if(mr.indexOf('\uc911\uc2dd')>=0)mn='\uc911\uc2dd';
+        else if(mr.indexOf('\uc77c\uc2dd')>=0)mn='\uc77c\uc2dd';
+        else if(mr.indexOf('\uc591\uc2dd')>=0)mn='\uc591\uc2dd';
+        else if(mr.indexOf('\uace0\uae30')>=0)mn='\uace0\uae30';
+        var dm=mr.match(/[\(\uff08](.+?)[\)\uff09]/);var dt=dm?dm[1]:mr.trim();
+        var ct=RC[rg]||[37.555,126.977];var co=ec[nm]||[ct[0]+(Math.random()-.5)*.008,ct[1]+(Math.random()-.5)*.008];
+        var g=function(){var k=fc.apply(null,Array.prototype.slice.call(arguments));var v=k?row[k]:'';return v?String(v).replace(/\n{3,}/g,'\n').replace(/^nan$/,'').trim():'';};
+        return{id:'rx'+i+'_'+Date.now(),name:nm,region:rg,menu:mn,detail:dt,
+          addr:g('\uc704\uce58','\uc8fc\uc18c'),
+          tel:String(row[fc('\uc804\ud654\ubc88\ud638','\uc804\ud654')||'']||'').replace(/\n/g,' ').replace(/^nan$/,'').trim(),
+          station:String(row[fc('\uc778\uadfc\uc5ed','\uc5ed')||'']||'').replace(/\n/g,'/').replace(/^nan$/,'').trim(),
+          room:g('\ub8f8 \uc5ec\ubd80','\ub8f8\uc5ec\ubd80'),cork:g('\ucf5c\ud0a4\uc9c0'),
+          naver:g('\ub124\uc774\ubc84 \ub9c1\ud06c','\ub124\uc774\ubc84\ub9c1\ud06c'),
+          memo:g('\uba54\ubaa8'),review:g('\ucf54\uba58\ud2b8(\ub9ac\ubdf0)','\ucf54\uba58\ud2b8'),
+          lat:co[0],lng:co[1]};
+      });
+      DATA=nd;
+      if(dbRef){var obj={};DATA.forEach(function(r){obj[r.id]=r;});dbRef.child('restaurants').set(obj);}
+      selR.clear();selM.clear();document.querySelectorAll('.chip').forEach(function(c){c.classList.remove('ar','am');});
+      applyF();showT('\u2705 '+nd.length+'\uac1c \uc5c5\ub370\uc774\ud2b8 \uc644\ub8cc');
+    }catch(err){showT('\u26a0\ufe0f '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);event.target.value='';
+}
+function openShare(){$id('fbi').value=localStorage.getItem('fb_url')||'';$id('soOverlay').classList.add('open');}
+function connectFB(){
+  var url=$id('fbi').value.trim();
+  if(url.indexOf('https://')!==0){showT('\u26a0\ufe0f Firebase URL \ud655\uc778');return;}
+  localStorage.setItem('fb_url',url);$id('soOverlay').classList.remove('open');initFB(url);
+}
+function initFB(url){
+  if(typeof firebase==='undefined'){setTimeout(function(){initFB(url);},500);return;}
+  try{
+    var app=firebase.initializeApp({databaseURL:url},'app_'+Date.now());
+    var db=firebase.database(app);dbRef=db.ref('/foodiMap');
+    dbRef.child('restaurants').on('value',function(snap){var v=snap.val();if(v){DATA=Object.values(v);applyF();}},function(){});
+    showT('\ud83d\udd17 \uc5f0\uacb0 \uc644\ub8cc!');
+  }catch(e){showT('\u26a0\ufe0f '+e.message);}
+}
+document.addEventListener('DOMContentLoaded',function(){
+  // 보기전용: 편집 버튼 비활성화
+  $id('tog').addEventListener('click',togSB);
+  $id('moX').addEventListener('click',closeModal);
+  $id('moCancel').addEventListener('click',closeModal);
+  $id('moSave').addEventListener('click',saveR);
+  $id('delbtn').addEventListener('click',delR);
+  $id('moOverlay').addEventListener('click',function(e){if(e.target===$id('moOverlay'))closeModal();});
+  $id('fbOk').addEventListener('click',connectFB);
+  $id('fbSkip').addEventListener('click',function(){$id('soOverlay').classList.remove('open');});
+  $id('soOverlay').addEventListener('click',function(e){if(e.target===$id('soOverlay'))$id('soOverlay').classList.remove('open');});
+  buildChips();filtered=DATA.slice();initMap();renderList();
+  window.addEventListener('resize',function(){if(map)map.invalidateSize();});
+  var s=localStorage.getItem('fb_url')||'https://foodjipyong-default-rtdb.asia-southeast1.firebasedatabase.app';if(s)initFB(s);
+});
+})();
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('sw.js')
+      .then(function(reg){console.log('SW 등록됨');})
+      .catch(function(err){console.log('SW 실패:',err);});
+  });
+}
+</script>
+</body>
+</html>
